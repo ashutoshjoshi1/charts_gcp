@@ -7,7 +7,7 @@ from watchdog.events import FileSystemEventHandler
 bucket_name = 'pandora_diagnostic'
 credentials_path = 'ornate-course-442519-s9-bfb13539fb48.json'
 
-watched_dir = 'C:/Users/Mini-Pan/Desktop/GCP/logfiles/'
+watched_dir = 'C:/Blick/data/diagnostic/'
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
 
@@ -17,7 +17,6 @@ bucket = storage_client.bucket(bucket_name)
 
 class FileUploadHandler(FileSystemEventHandler):
     def on_created(self, event):
-        # Check if the created file is a .jpeg file
         if not event.is_directory and event.src_path.endswith('.jpeg'):
             file_path = event.src_path
             file_name = os.path.basename(file_path)
@@ -40,7 +39,7 @@ def main():
 
     try:
         while True:
-            time.sleep(1)  # Keep the script running
+            time.sleep(1)
     except KeyboardInterrupt:
         observer.stop()
 
