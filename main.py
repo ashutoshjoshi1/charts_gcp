@@ -1,7 +1,7 @@
 import os
-import time
 from google.cloud import storage
-import schedule
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 
 bucket_name = 'pandora_diagnostic'
 credentials_path = 'ornate-course-442519-s9-bfb13539fb48.json'
@@ -13,31 +13,38 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
 storage_client = storage.Client()
 bucket = storage_client.bucket(bucket_name)
 
-last_modified_times = {}
 
-def upload_files_to_gcp():
-    for file_name in os.listdir(watched_dir):
-        # Filter only .jpeg files
-        if file_name.endswith('.jpeg'):
-            file_path = os.path.join(watched_dir, file_name)
-            if os.path.isfile(file_path):
-                current_modified_time = os.path.getmtime(file_path)
+class FileUploadHandler(FileSystemEventHandler):
+    def on_created(self, event):
+        # Check if the created file is a .jpeg file
+        if not event.is_directory and event.src_path.endswith('.jpeg'):
+            file_path = event.src_path
+            file_name = os.path.basename(file_path)
+            try:
+                bucket_path = os.path.join('Pan002/', file_name)
+                blob = bucket.blob(bucket_path)
+                blob.upload_from_filename(file_path)
+                print(f"Uploaded {file_path} to {bucket_name}")
+            except Exception as e:
+                print(f"Failed to upload {file_path}: {e}")
 
-                if file_name not in last_modified_times or last_modified_times[file_name] < current_modified_time:
-                    bucket_path = os.path.join('Pan002/', file_name)
-                    blob = bucket.blob(bucket_path)
-                    blob.upload_from_filename(file_path)
-                    print(f"Uploaded {file_path} to {bucket_name}")
-
-                    last_modified_times[file_name] = current_modified_time
 
 def main():
-    # Schedule the upload task to run every hour
-    schedule.every(1).hour.do(upload_files_to_gcp)
-    
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
+    event_handler = FileUploadHandler()
+    observer = Observer()
+    observer.schedule(event_handler, path=watched_dir, recursive=False)
+
+    print(f"Watching directory: {watched_dir} for new .jpeg files...")
+    observer.start()
+
+    try:
+        while True:
+            time.sleep(1)  # Keep the script running
+    except KeyboardInterrupt:
+        observer.stop()
+
+    observer.join()
+
 
 if __name__ == '__main__':
     main()
